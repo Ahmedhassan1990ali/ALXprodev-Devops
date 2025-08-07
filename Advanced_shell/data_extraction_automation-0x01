@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Extract data using jq
+name=$(jq -r '.name' pikachu.json | sed 's/.*/\u&/')
+type=$(jq -r '.types[0].type.name' pikachu.json | sed 's/.*/\u&/')
+height=$(jq -r '.height' pikachu.json)
+weight=$(jq -r '.weight' pikachu.json)
+
+# Convert and format height (decimeters to meters) using awk
+formatted_height=$(awk "BEGIN {printf \"%.1f\", $height / 10}")
+
+# Convert and format weight (hectograms to kilograms) using awk
+formatted_weight=$(awk "BEGIN {printf \"%.1f\", $weight / 10}")
+
+# Format output using sed to ensure correct string structure
+echo "$name is of type $type, weighs ${formatted_weight}kg, and is ${formatted_height}m tall." | sed 's/\.0kg/kg/' | sed 's/\.0m/m/'
