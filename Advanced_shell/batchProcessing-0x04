@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# List of Pokémon to fetch
+pokemon_list=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
+
+# Create directory for Pokémon data if it doesn't exist
+mkdir -p pokemon_data
+
+# Error log file
+error_log="error.log"
+
+# Timeout for each curl request (in seconds)
+timeout=10
+
+# Function to fetch data for a single Pokémon
+fetch_pokemon() {
+    local pokemon=$1
+    local pid
+    echo "Fetching data for $pokemon..."
+    # Run curl in background and capture PID
+    curl -s -w "%{http_code}" "https://pokeapi.co/api/v2/pokemon/$pokemon" -o "pokemon_data/$pokemon.json" 2>/dev/null &
+    pid=$!
+    
+    # Monitor process with timeout
+    start_time=$(date +%s)
+    while jobs -p | grep -q "^$pid$"; do
+        current_time=$(date +%s)
+        if [ $((current_time - start_time)) -ge $timeout ]; then
+            echo "Timeout: Killing process for $pokemon (PID: $pid)" | tee -a "$error_log"
+            kill -9 "$pid" 2>/dev/null
+            return 1
+        fi
+        sleep 0.1
+    done
+    
+    # Check if curl wrote a valid file and HTTP status
+    if [ -s "pokemon_data/$pokemon.json" ]; then
+        http_status=$(tail -n 1 "pokemon_data/$pokemon.json" | grep -o '[0-9]\{3\}$')
+        if [ "$http_status" = "200" ]; then
+            echo "Saved data to pokemon_data/$pokemon.json ✅"
+            return 0
+        fi
+    fi
+    echo "Failed to fetch data for $pokemon" | tee -a "$error_log"
+    return 1
+}
+
+# Clear error log if it exists
+> "$error_log"
+
+# Launch background processes for each Pokémon
+for pokemon in "${pokemon_list[@]}"; do
+    fetch_pokemon "$pokemon" &
+    # Small delay to prevent overwhelming the API
+    sleep 0.5
+done
+
+# Wait for all background processes to complete
+while [ -n "$(jobs -r)" ]; do
+    jobs >/dev/null 2>&1
+    sleep 0.1
+done
+wait
