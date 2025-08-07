@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Pokémon API base URL
+BASE_URL="https://pokeapi.co/api/v2/pokemon/"
+POKEMON="pikachu"
+OUTPUT_FILE="data.json"
+ERROR_FILE="errors.txt"
+
+# Make the API request for Pikachu
+API_URL="${BASE_URL}${POKEMON}"
+
+# Make the request and handle response
+curl_response=$(curl -s -w "%{http_code}" -o "$OUTPUT_FILE" "$API_URL" 2>> "$ERROR_FILE")
+status_code=${curl_response: -3}  # Get the last 3 digits (HTTP status code)
+
+# Check if the request was successful (status code 200)
+if [ "$status_code" -ne 200 ]; then
+    error_msg="[$(date)] Request failed with status code $status_code"
+    echo "$error_msg" >> "$ERROR_FILE"
+    echo "$error_msg"
+    exit 1
+fi
+
+# Verify the response is valid JSON
+if ! jq empty "$OUTPUT_FILE" 2>> "$ERROR_FILE"; then
+    error_msg="[$(date)] Invalid JSON response from API"
+    echo "$error_msg" >> "$ERROR_FILE"
+    echo "$error_msg"
+    exit 1
+fi
+
+echo "Pikachu data successfully saved to $OUTPUT_FILE"
+exit 0
