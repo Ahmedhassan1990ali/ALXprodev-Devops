@@ -6,17 +6,38 @@ pokemon_list=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
 # Create directory for Pokémon data if it doesn't exist
 mkdir -p pokemon_data
 
+# Error log file
+error_log="error.log"
+
+# Maximum retries and delay between retries (in seconds)
+max_retries=3
+retry_delay=2
+
 # Loop through each Pokémon
 for pokemon in "${pokemon_list[@]}"; do
     echo "Fetching data for $pokemon..."
-    # Fetch data from PokéAPI and save to file
-    curl -s "https://pokeapi.co/api/v2/pokemon/$pokemon" -o "pokemon_data/$pokemon.json"
-    # Check if curl was successful
-    if [ $? -eq 0 ]; then
-        echo "Saved data to pokemon_data/$pokemon.json ✅"
-    else
-        echo "Failed to fetch data for $pokemon"
-    fi
-    # Add delay to avoid rate-limiting
-    sleep 2
+    attempt=1
+    success=false
+
+    while [ $attempt -le $max_retries ] && [ "$success" = false ]; do
+        # Fetch data from PokéAPI, capturing HTTP status code
+        http_status=$(curl -s -w "%{http_code}" "https://pokeapi.co/api/v2/pokemon/$pokemon" -o "pokemon_data/$pokemon.json" 2>/dev/null)
+
+        # Check if curl was successful and HTTP status is 200
+        if [ $? -eq 0 ] && [ "$http_status" -eq 200 ]; then
+            echo "Saved data to pokemon_data/$pokemon.json ✅"
+            success=true
+        else
+            if [ $attempt -lt $max_retries ]; then
+                echo "Attempt $attempt failed for $pokemon. Retrying in $retry_delay seconds..."
+                sleep $retry_delay
+            else
+                echo "Failed to fetch data for $pokemon after $max_retries attempts." | tee -a "$error_log"
+            fi
+        fi
+        ((attempt++))
+    done
+
+    # Add delay between Pokémon to avoid rate-limiting
+    [ "$success" = true ] && sleep 2
 done
